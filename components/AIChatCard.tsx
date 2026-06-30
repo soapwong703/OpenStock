@@ -111,7 +111,7 @@ export default function AIChatCard({
         </div>
 
         {/* Content area */}
-        <div className="max-h-[400px] min-h-[72px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-[5px] [&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-700">
+        <div className="min-h-[72px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-[5px] [&::-webkit-scrollbar-track]:bg-gray-900 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-700">
           {loading && (
             <div className="space-y-3">
               <div className="h-5 w-full animate-pulse rounded-md bg-gradient-to-r from-gray-800 via-gray-700/60 to-gray-800" />
