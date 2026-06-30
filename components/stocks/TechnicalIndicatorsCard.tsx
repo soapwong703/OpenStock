@@ -90,20 +90,23 @@ export default function TechnicalIndicatorsCard({ symbol }: Props) {
   const [data, setData] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getStockTechnicalData(symbol);
-      if (!result)
-        console.warn(`⚠️ Technical indicators unavailable for ${symbol}`);
-      setData(result);
-    } catch (e) {
-      console.error(`❌ Technical indicators failed for ${symbol}:`, e);
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [symbol]);
+  const fetchData = useCallback(
+    async (forceRefresh = false) => {
+      setLoading(true);
+      try {
+        const result = await getStockTechnicalData(symbol, forceRefresh);
+        if (!result)
+          console.warn(`⚠️ Technical indicators unavailable for ${symbol}`);
+        setData(result);
+      } catch (e) {
+        console.error(`❌ Technical indicators failed for ${symbol}:`, e);
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [symbol],
+  );
 
   useEffect(() => {
     fetchData();
@@ -116,7 +119,7 @@ export default function TechnicalIndicatorsCard({ symbol }: Props) {
           Technical Indicators
         </h2>
         <button
-          onClick={fetchData}
+          onClick={() => fetchData(true)}
           disabled={loading}
           className="flex items-center gap-1.5 rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:border-teal-800 hover:text-teal-400 disabled:opacity-50"
         >
@@ -152,16 +155,28 @@ export default function TechnicalIndicatorsCard({ symbol }: Props) {
             <RSIWidget value={data.rsi} />
           </div>
 
-          {/* Moving averages */}
-          <MVWidget label="SMA (20)" value={data.sma20} price={data.sma20} />
-          <MVWidget label="SMA (50)" value={data.sma50} price={data.sma50} />
-          <MVWidget label="SMA (200)" value={data.sma200} price={data.sma200} />
+          {/* Moving averages — compared against current price */}
+          <MVWidget
+            label="SMA (20)"
+            value={data.sma20}
+            price={data.currentPrice}
+          />
+          <MVWidget
+            label="SMA (50)"
+            value={data.sma50}
+            price={data.currentPrice}
+          />
+          <MVWidget
+            label="SMA (200)"
+            value={data.sma200}
+            price={data.currentPrice}
+          />
 
           {/* MACD */}
           <MACDWidget macd={data.macd} />
 
-          {/* VWAP */}
-          <MVWidget label="VWAP" value={data.vwap} price={data.vwap} />
+          {/* VWAP — compared against current price */}
+          <MVWidget label="VWAP" value={data.vwap} price={data.currentPrice} />
 
           {/* Volume */}
           <VolumeWidget value={data.volume} />

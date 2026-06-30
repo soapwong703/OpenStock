@@ -14,6 +14,7 @@ import Alpaca from "@alpacahq/alpaca-trade-api";
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface TechnicalIndicators {
+  currentPrice: number | null;
   rsi: number | null;
   sma20: number | null;
   sma50: number | null;
@@ -179,9 +180,16 @@ async function calcMACD(closes: number[]): Promise<{
 async function getTechnicalIndicators(
   symbol: string,
 ): Promise<TechnicalIndicators> {
-  const bars = await fetchAlpacaBars(symbol);
+  const [bars, quote] = await Promise.all([
+    fetchAlpacaBars(symbol),
+    getQuote(symbol),
+  ]);
+
+  const currentPrice = quote?.c ?? null;
+
   if (!bars || bars.length < 20) {
     return {
+      currentPrice,
       rsi: null,
       sma20: null,
       sma50: null,
@@ -204,6 +212,7 @@ async function getTechnicalIndicators(
   ]);
 
   return {
+    currentPrice,
     rsi,
     sma20,
     sma50,
@@ -417,15 +426,18 @@ export async function getAIStockAnalysis(
  */
 export async function getStockTechnicalData(
   symbol: string,
+  forceRefresh = false,
 ): Promise<TechnicalIndicators | null> {
   const cacheKey = `tech-data:${symbol.toUpperCase()}`;
   try {
-    // Check cache
+    // Check cache (unless forcing refresh)
     await connectToDatabase();
-    const cached = await Cache.findOne({ cacheKey }).lean();
-    if (cached) {
-      console.log(`⚡ Tech Data Cache HIT: ${cacheKey}`);
-      return JSON.parse(cached.result) as TechnicalIndicators;
+    if (!forceRefresh) {
+      const cached = await Cache.findOne({ cacheKey }).lean();
+      if (cached) {
+        console.log(`⚡ Tech Data Cache HIT: ${cacheKey}`);
+        return JSON.parse(cached.result) as TechnicalIndicators;
+      }
     }
 
     // Fetch fresh
@@ -434,13 +446,12 @@ export async function getStockTechnicalData(
 
     // If all core fields are null, nothing useful was fetched
     if (
+      result.currentPrice === null &&
       result.rsi === null &&
       result.sma20 === null &&
       result.sma50 === null &&
       result.sma200 === null &&
-      result.macd === null &&
-      result.vwap === null &&
-      result.volume === null
+      result.macd === null
     ) {
       console.warn(
         `⚠️ Tech Data unavailable for ${symbol}: all indicators null (check Alpaca keys / data feed)`,
