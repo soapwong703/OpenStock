@@ -28,13 +28,32 @@ export interface TechnicalIndicators {
   volume: number | null;
 }
 
-// ── Alpaca Market Data ───────────────────────────────────────────────
+/** Minimal shape of an Alpaca bar (returned by getMultiBarsV2). */
+type AlpacaBar =
+  import("@alpacahq/alpaca-trade-api/dist/resources/datav2/entityv2").AlpacaBar;
+
+// ── Alpaca Market Data (cached, 1-day TTL) ───────────────────────────
 
 /**
- * Fetch daily bars for a symbol using the Alpaca SDK.
+ * Fetch daily bars for a symbol using the Alpaca SDK, with DB caching.
  * Returns at least 250 bars for computing indicators, or null on failure.
+ * Cache TTL is 1 day since bar data only changes once per trading day.
  */
-async function fetchAlpacaBars(symbol: string) {
+async function getCachedAlpacaBars(
+  symbol: string,
+): Promise<AlpacaBar[] | null> {
+  const cacheKey = `alpaca-bars:${symbol.toUpperCase()}`;
+
+  await connectToDatabase();
+
+  // ── Check cache ──────────────────────────────────────────────────────
+  const cached = await Cache.findOne({ cacheKey }).lean();
+  if (cached) {
+    console.log(`⚡ Alpaca Bars Cache HIT: ${cacheKey}`);
+    return JSON.parse(cached.result) as AlpacaBar[];
+  }
+
+  // ── Fetch from Alpaca ────────────────────────────────────────────────
   try {
     const key = process.env.ALPACA_API_KEY;
     const secret = process.env.ALPACA_SECRET_KEY;
@@ -75,6 +94,18 @@ async function fetchAlpacaBars(symbol: string) {
     }
 
     console.log(`✅ Alpaca bars ${symbol}: ${bars.length} days`);
+
+    // ── Persist to cache with 1-day TTL ──────────────────────────────────
+    await Cache.deleteOne({ cacheKey });
+    await Cache.create({
+      cacheKey,
+      type: "alpaca-bars",
+      result: JSON.stringify(bars),
+      input: JSON.stringify({ symbol }),
+      expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
+    });
+
+    console.log(`💾 Alpaca Bars Cache SAVED: ${cacheKey} (1d TTL)`);
     return bars;
   } catch (e) {
     console.error(`❌ Alpaca bars failed for ${symbol}:`, e);
@@ -181,7 +212,7 @@ async function getTechnicalIndicators(
   symbol: string,
 ): Promise<TechnicalIndicators> {
   const [bars, quote] = await Promise.all([
-    fetchAlpacaBars(symbol),
+    getCachedAlpacaBars(symbol),
     getQuote(symbol),
   ]);
 
@@ -267,7 +298,7 @@ Recent news:
 Market Summary:`;
 
 const STOCK_ANALYSIS_PROMPT =
-  "You are an investment advisor explaining a stock to a university student. Keep it clear, educational, and concise.\n\n" +
+  "You are a financial market analyst. Keep it clear, educational, and concise.\n\n" +
   "Your analysis for {{symbol}} ({{companyName}}):\n" +
   "Current price: ${{price}} ({{change}}, {{changePercent}}%%)\n" +
   "Market cap: {{marketCap}}\n\n" +
@@ -317,6 +348,7 @@ async function callAIWithCache(
       provider: config.name,
       baseUrl: config.baseUrl,
     }),
+    expireAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
   });
 
   console.log(
@@ -459,6 +491,7 @@ export async function getStockTechnicalData(
         provider: "alpaca",
         baseUrl: "https://data.alpaca.markets/v2",
       }),
+      expireAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
     });
 
     console.log(`💾 Tech Data Cache SAVED: ${cacheKey}`);
@@ -466,5 +499,33 @@ export async function getStockTechnicalData(
   } catch (error) {
     console.error(`Failed to fetch technical data for ${symbol}`, error);
     return null;
+  }
+}
+
+/**
+ * Ask a follow-up question in the context of a previous AI response, or a general question.
+ * @param context - The original AI analysis text that provides helpful background
+ * @param question - The user's follow-up question
+ */
+export async function askFollowUp(
+  context: string,
+  question: string,
+): Promise<string> {
+  try {
+    const prompt =
+      "You are a financial market analyst.\n\n" +
+      (context
+        ? "Relevant context (previous analysis):\n" + context + "\n\n"
+        : "") +
+      "User question:\n" +
+      question +
+      "\n\n" +
+      "Answer clearly and concisely (2-4 sentences). Use the context if helpful, but you can also answer general investment questions. Be specific with numbers when referencing data. No markdown.";
+
+    const result = await callAIProvider(prompt);
+    return result.trim();
+  } catch (error) {
+    console.error("Failed to answer follow-up question:", error);
+    return "Sorry, I couldn't process your question. Please try again.";
   }
 }
