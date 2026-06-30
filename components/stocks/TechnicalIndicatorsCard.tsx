@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { getStockTechnicalData } from "@/lib/actions/ai.actions";
 import type { TechnicalIndicators } from "@/lib/actions/ai.actions";
 
@@ -9,38 +9,90 @@ interface Props {
   symbol: string;
 }
 
-function RSIWidget({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-gray-600">—</span>;
+function RSIWidget({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null | undefined;
+}) {
+  if (value == null) return null;
   const color =
     value >= 70
       ? "text-rose-400"
       : value <= 30
         ? "text-emerald-400"
         : "text-gray-200";
-  return <span className={`font-semibold ${color}`}>{value.toFixed(1)}</span>;
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-gray-500">{label}:</span>
+      <span className={`font-semibold ${color}`}>{value.toFixed(1)}</span>
+    </span>
+  );
 }
 
-function MVWidget({
-  label,
-  value,
+function RSIGroupWidget({
+  rsi7,
+  rsi14,
+  rsi21,
+}: {
+  rsi7: number | null | undefined;
+  rsi14: number | null | undefined;
+  rsi21: number | null | undefined;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="text-xs text-gray-500">RSI</span>
+      <div className="mt-1 flex items-center gap-3 text-sm">
+        <RSIWidget label="7" value={rsi7} />
+        <RSIWidget label="14" value={rsi14} />
+        <RSIWidget label="21" value={rsi21} />
+      </div>
+    </div>
+  );
+}
+
+function SMAWidget({
+  sma5,
+  sma10,
+  sma20,
+  sma50,
+  sma200,
   price,
 }: {
-  label: string;
-  value: number | null;
-  price: number | null;
+  sma5: number | null | undefined;
+  sma10: number | null | undefined;
+  sma20: number | null | undefined;
+  sma50: number | null | undefined;
+  sma200: number | null | undefined;
+  price: number | null | undefined;
 }) {
-  if (value === null) return null;
-  const above = price !== null && price > value;
-  const color = above ? "text-emerald-400" : "text-rose-400";
-  const Icon = above ? TrendingUp : TrendingDown;
+  const items = [
+    { label: "5", value: sma5 },
+    { label: "10", value: sma10 },
+    { label: "20", value: sma20 },
+    { label: "50", value: sma50 },
+    { label: "200", value: sma200 },
+  ];
+
   return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm font-semibold text-gray-200">
-          ${value.toFixed(2)}
-        </span>
-        <Icon className={`h-3.5 w-3.5 ${color}`} />
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="text-xs text-gray-500">SMA</span>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        {items.map(({ label, value }) => {
+          if (value == null) return null;
+          const above = price != null && price > value;
+          return (
+            <span key={label} className="flex items-center gap-1">
+              <span className="text-gray-500">{label}:</span>
+              <span
+                className={`font-semibold ${above ? "text-emerald-400" : "text-rose-400"}`}
+              >
+                ${value.toFixed(2)}
+              </span>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -70,8 +122,8 @@ function MACDWidget({ macd }: { macd: TechnicalIndicators["macd"] }) {
   );
 }
 
-function VolumeWidget({ value }: { value: number | null }) {
-  if (value === null) return null;
+function VolumeWidget({ value }: { value: number | null | undefined }) {
+  if (value == null) return null;
   const vol =
     value >= 1_000_000
       ? `${(value / 1_000_000).toFixed(1)}M`
@@ -82,6 +134,102 @@ function VolumeWidget({ value }: { value: number | null }) {
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
       <span className="text-xs text-gray-500">Volume</span>
       <p className="mt-0.5 text-sm font-semibold text-gray-200">{vol}</p>
+    </div>
+  );
+}
+
+function KDJWidget({
+  k,
+  d,
+  j,
+}: {
+  k: number | null | undefined;
+  d: number | null | undefined;
+  j: number | null | undefined;
+}) {
+  if (k == null || d == null || j == null) return null;
+
+  // Colour based on J line (most sensitive)
+  const jColor =
+    j > 100 ? "text-rose-400" : j < 0 ? "text-emerald-400" : "text-gray-200";
+
+  // K/D crossover signal
+  const bullCross = k > d;
+  const crossColor = bullCross ? "text-emerald-400" : "text-rose-400";
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="text-xs text-gray-500">KDJ (9, 3, 3)</span>
+      <div className="mt-1 flex items-center gap-3 text-sm">
+        <span className="font-semibold text-gray-200">K: {k.toFixed(1)}</span>
+        <span className="font-semibold text-gray-200">D: {d.toFixed(1)}</span>
+        <span className={`font-semibold ${jColor}`}>J: {j.toFixed(1)}</span>
+        <span className={`text-xs ${crossColor}`}>
+          K {bullCross ? "↑" : "↓"} D
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BBWidget({
+  upper,
+  middle,
+  lower,
+  price,
+}: {
+  upper: number | null | undefined;
+  middle: number | null | undefined;
+  lower: number | null | undefined;
+  price: number | null;
+}) {
+  if (upper == null || middle == null || lower == null) return null;
+
+  // Where is price relative to the bands?
+  const bandWidth = upper - lower;
+  const relPos = bandWidth > 0 ? ((price ?? middle) - lower) / bandWidth : 0.5;
+
+  // Colour based on proximity to upper (overbought) / lower (oversold)
+  let bandColor = "text-gray-200";
+  if (relPos > 0.9) bandColor = "text-rose-400";
+  else if (relPos < 0.1) bandColor = "text-emerald-400";
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="text-xs text-gray-500">Bollinger Bands (20, 2)</span>
+      <div className="mt-1 flex items-center gap-2 text-sm">
+        <span className="font-semibold text-gray-200">${upper.toFixed(2)}</span>
+        <span className="text-gray-500">/</span>
+        <span className={`font-semibold ${bandColor}`}>
+          ${middle.toFixed(2)}
+        </span>
+        <span className="text-gray-500">/</span>
+        <span className="font-semibold text-gray-200">${lower.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+function OBVWidget({ value }: { value: number | null | undefined }) {
+  if (value == null) return null;
+  const absVal = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const obv =
+    absVal >= 1_000_000
+      ? `${sign}${(absVal / 1_000_000).toFixed(1)}M`
+      : absVal >= 1_000
+        ? `${sign}${(absVal / 1_000).toFixed(0)}K`
+        : String(value);
+  const color =
+    value > 0
+      ? "text-emerald-400"
+      : value < 0
+        ? "text-rose-400"
+        : "text-gray-200";
+  return (
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="text-xs text-gray-500">OBV</span>
+      <p className={`mt-0.5 text-sm font-semibold ${color}`}>{obv}</p>
     </div>
   );
 }
@@ -149,37 +297,42 @@ export default function TechnicalIndicatorsCard({ symbol }: Props) {
 
       {!loading && data && (
         <div className="space-y-3">
-          {/* RSI */}
-          <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-            <span className="text-xs text-gray-500">RSI (14)</span>
-            <RSIWidget value={data.rsi} />
-          </div>
+          {/* Moving averages — all in one compact row */}
+          <SMAWidget
+            sma5={data.sma5}
+            sma10={data.sma10}
+            sma20={data.sma20}
+            sma50={data.sma50}
+            sma200={data.sma200}
+            price={data.currentPrice}
+          />
 
-          {/* Moving averages — compared against current price */}
-          <MVWidget
-            label="SMA (20)"
-            value={data.sma20}
-            price={data.currentPrice}
-          />
-          <MVWidget
-            label="SMA (50)"
-            value={data.sma50}
-            price={data.currentPrice}
-          />
-          <MVWidget
-            label="SMA (200)"
-            value={data.sma200}
-            price={data.currentPrice}
+          {/* RSI — three periods in one row */}
+          <RSIGroupWidget
+            rsi7={data.rsi7}
+            rsi14={data.rsi14}
+            rsi21={data.rsi21}
           />
 
           {/* MACD */}
           <MACDWidget macd={data.macd} />
 
-          {/* VWAP — compared against current price */}
-          <MVWidget label="VWAP" value={data.vwap} price={data.currentPrice} />
+          {/* KDJ */}
+          <KDJWidget k={data.k} d={data.d} j={data.j} />
 
-          {/* Volume */}
-          <VolumeWidget value={data.volume} />
+          {/* Bollinger Bands */}
+          <BBWidget
+            upper={data.bbUpper}
+            middle={data.bbMiddle}
+            lower={data.bbLower}
+            price={data.currentPrice}
+          />
+
+          {/* OBV + Volume — side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            <OBVWidget value={data.obv} />
+            <VolumeWidget value={data.volume} />
+          </div>
         </div>
       )}
     </section>

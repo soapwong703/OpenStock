@@ -15,7 +15,11 @@ import Alpaca from "@alpacahq/alpaca-trade-api";
 
 export interface TechnicalIndicators {
   currentPrice: number | null;
-  rsi: number | null;
+  rsi7: number | null;
+  rsi14: number | null;
+  rsi21: number | null;
+  sma5: number | null;
+  sma10: number | null;
   sma20: number | null;
   sma50: number | null;
   sma200: number | null;
@@ -24,7 +28,16 @@ export interface TechnicalIndicators {
     signal: number | null;
     histogram: number | null;
   } | null;
-  vwap: number | null;
+  /** KDJ (Stochastic) — K line, D line, J line */
+  k: number | null;
+  d: number | null;
+  j: number | null;
+  /** Bollinger Bands (20, 2) — upper, middle (= SMA20), lower */
+  bbUpper: number | null;
+  bbMiddle: number | null;
+  bbLower: number | null;
+  /** On-Balance Volume */
+  obv: number | null;
   volume: number | null;
 }
 
@@ -206,6 +219,88 @@ async function calcMACD(closes: number[]): Promise<{
   };
 }
 
+/** KDJ via TA-Lib's STOCH: K = fast %K, D = slow %D, J = 3*D - 2*K */
+async function calcKDJ(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+): Promise<{ k: number | null; d: number | null; j: number | null }> {
+  if (closes.length < 9) return { k: null, d: null, j: null };
+
+  const res = await talibExec({
+    name: "STOCH",
+    startIdx: 0,
+    endIdx: closes.length - 1,
+    high: highs,
+    low: lows,
+    close: closes,
+    optInFastK_Period: 9,
+    optInSlowK_Period: 3,
+    optInSlowK_MAType: 0, // SMA
+    optInSlowD_Period: 3,
+    optInSlowD_MAType: 0, // SMA
+  });
+
+  const r = res.result as Record<string, number[]>;
+  const nb = res.nbElement as number;
+
+  const k = lastOf(r.outSlowK, nb);
+  const d = lastOf(r.outSlowD, nb);
+  const j = k !== null && d !== null ? 3 * d - 2 * k : null;
+
+  return { k, d, j };
+}
+
+/** Bollinger Bands via TA-Lib BBANDS: middle = SMA(20), upper/lower = ±2σ */
+async function calcBollingerBands(closes: number[]): Promise<{
+  upper: number | null;
+  middle: number | null;
+  lower: number | null;
+}> {
+  if (closes.length < 20) return { upper: null, middle: null, lower: null };
+
+  const res = await talibExec({
+    name: "BBANDS",
+    startIdx: 0,
+    endIdx: closes.length - 1,
+    inReal: closes,
+    optInTimePeriod: 20,
+    optInNbDevUp: 2,
+    optInNbDevDn: 2,
+    optInMAType: 0, // SMA
+  });
+
+  const r = res.result as Record<string, number[]>;
+  const nb = res.nbElement as number;
+
+  return {
+    upper: lastOf(r.outRealUpperBand, nb),
+    middle: lastOf(r.outRealMiddleBand, nb),
+    lower: lastOf(r.outRealLowerBand, nb),
+  };
+}
+
+/** On-Balance Volume via TA-Lib OBV */
+async function calcOBV(
+  closes: number[],
+  volumes: number[],
+): Promise<number | null> {
+  if (closes.length < 2) return null;
+
+  const res = await talibExec({
+    name: "OBV",
+    startIdx: 0,
+    endIdx: closes.length - 1,
+    inReal: closes,
+    volume: volumes,
+  });
+
+  return lastOf(
+    (res.result as Record<string, number[]>)?.outReal,
+    res.nbElement as number,
+  );
+}
+
 // ── Aggregate ────────────────────────────────────────────────────────
 
 async function getTechnicalIndicators(
@@ -221,35 +316,77 @@ async function getTechnicalIndicators(
   if (!bars || bars.length < 20) {
     return {
       currentPrice,
-      rsi: null,
+      rsi7: null,
+      rsi14: null,
+      rsi21: null,
+      sma5: null,
+      sma10: null,
       sma20: null,
       sma50: null,
       sma200: null,
       macd: null,
-      vwap: null,
+      k: null,
+      d: null,
+      j: null,
+      bbUpper: null,
+      bbMiddle: null,
+      bbLower: null,
+      obv: null,
       volume: null,
     };
   }
 
   const closes = bars.map((b) => b.ClosePrice);
+  const highs = bars.map((b) => b.HighPrice);
+  const lows = bars.map((b) => b.LowPrice);
   const volumes = bars.map((b) => b.Volume);
 
-  const [rsi, sma20, sma50, sma200, macd] = await Promise.all([
-    calcRSI(closes, 14),
-    calcSMA(closes, 20),
-    calcSMA(closes, 50),
-    calcSMA(closes, 200),
-    calcMACD(closes),
-  ]);
-
-  return {
-    currentPrice,
-    rsi,
+  const [
+    rsi7,
+    rsi14,
+    rsi21,
+    sma5,
+    sma10,
     sma20,
     sma50,
     sma200,
     macd,
-    vwap: bars[bars.length - 1]?.VWAP ?? null,
+    kdj,
+    bb,
+    obv,
+  ] = await Promise.all([
+    calcRSI(closes, 7),
+    calcRSI(closes, 14),
+    calcRSI(closes, 21),
+    calcSMA(closes, 5),
+    calcSMA(closes, 10),
+    calcSMA(closes, 20),
+    calcSMA(closes, 50),
+    calcSMA(closes, 200),
+    calcMACD(closes),
+    calcKDJ(closes, highs, lows),
+    calcBollingerBands(closes),
+    calcOBV(closes, volumes),
+  ]);
+
+  return {
+    currentPrice,
+    rsi7,
+    rsi14,
+    rsi21,
+    sma5,
+    sma10,
+    sma20,
+    sma50,
+    sma200,
+    macd,
+    k: kdj.k,
+    d: kdj.d,
+    j: kdj.j,
+    bbUpper: bb.upper,
+    bbMiddle: bb.middle,
+    bbLower: bb.lower,
+    obv,
     volume: volumes[volumes.length - 1] ?? null,
   };
 }
@@ -257,7 +394,11 @@ async function getTechnicalIndicators(
 function formatTechnicalSummary(ti: TechnicalIndicators): string {
   const lines: string[] = [];
 
-  if (ti.rsi !== null) lines.push(`RSI(14): ${ti.rsi.toFixed(1)}`);
+  if (ti.rsi7 !== null) lines.push(`RSI(7): ${ti.rsi7.toFixed(1)}`);
+  if (ti.rsi14 !== null) lines.push(`RSI(14): ${ti.rsi14.toFixed(1)}`);
+  if (ti.rsi21 !== null) lines.push(`RSI(21): ${ti.rsi21.toFixed(1)}`);
+  if (ti.sma5 !== null) lines.push(`SMA(5): $${ti.sma5.toFixed(2)}`);
+  if (ti.sma10 !== null) lines.push(`SMA(10): $${ti.sma10.toFixed(2)}`);
   if (ti.sma20 !== null) lines.push(`SMA(20): $${ti.sma20.toFixed(2)}`);
   if (ti.sma50 !== null) lines.push(`SMA(50): $${ti.sma50.toFixed(2)}`);
   if (ti.sma200 !== null) lines.push(`SMA(200): $${ti.sma200.toFixed(2)}`);
@@ -267,7 +408,27 @@ function formatTechnicalSummary(ti: TechnicalIndicators): string {
       `MACD: ${macd.macd.toFixed(2)} / Signal: ${macd.signal.toFixed(2)} / Hist: ${(macd.histogram ?? 0).toFixed(2)}`,
     );
   }
-  if (ti.vwap !== null) lines.push(`VWAP: $${ti.vwap.toFixed(2)}`);
+  if (ti.k !== null && ti.d !== null && ti.j !== null) {
+    lines.push(
+      `KDJ: K=${ti.k.toFixed(1)} D=${ti.d.toFixed(1)} J=${ti.j.toFixed(1)}`,
+    );
+  }
+  if (ti.bbUpper !== null && ti.bbMiddle !== null && ti.bbLower !== null) {
+    lines.push(
+      `BB(20,2): Upper $${ti.bbUpper.toFixed(2)} Mid $${ti.bbMiddle.toFixed(2)} Lower $${ti.bbLower.toFixed(2)}`,
+    );
+  }
+  if (ti.obv !== null) {
+    const absVal = Math.abs(ti.obv);
+    const sign = ti.obv < 0 ? "-" : "";
+    const obv =
+      absVal >= 1_000_000
+        ? `${sign}${(absVal / 1_000_000).toFixed(1)}M`
+        : absVal >= 1_000
+          ? `${sign}${(absVal / 1_000).toFixed(0)}K`
+          : String(ti.obv);
+    lines.push(`OBV: ${obv}`);
+  }
   if (ti.volume !== null) {
     const vol =
       ti.volume >= 1_000_000
@@ -466,10 +627,26 @@ export async function getStockTechnicalData(
     const sym = symbol.toUpperCase();
     const result = await getTechnicalIndicators(sym);
 
+    // Normalise any fields that might be missing from stale cache entries
+    result.sma5 ??= null;
+    result.sma10 ??= null;
+    result.rsi7 ??= null;
+    result.rsi14 ??= null;
+    result.rsi21 ??= null;
+    result.k ??= null;
+    result.d ??= null;
+    result.j ??= null;
+    result.bbUpper ??= null;
+    result.bbMiddle ??= null;
+    result.bbLower ??= null;
+    result.obv ??= null;
+
     // If all core fields are null, nothing useful was fetched
     if (
       result.currentPrice === null &&
-      result.rsi === null &&
+      result.rsi7 === null &&
+      result.rsi14 === null &&
+      result.rsi21 === null &&
       result.sma20 === null &&
       result.sma50 === null &&
       result.sma200 === null &&
