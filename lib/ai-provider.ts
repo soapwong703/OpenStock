@@ -9,7 +9,7 @@
  * Each provider returns a plain-text string from the model.
  */
 
-export type AIProviderName = "gemini" | "minimax" | "siray";
+export type AIProviderName = "gemini" | "minimax" | "siray" | "ollama";
 
 export interface AIProviderConfig {
   name: AIProviderName;
@@ -21,21 +21,16 @@ export interface AIProviderConfig {
 /**
  * Resolve the provider configuration from environment variables.
  */
-export function getProviderConfig(
-  provider?: AIProviderName
-): AIProviderConfig {
+export function getProviderConfig(provider?: AIProviderName): AIProviderConfig {
   const name =
-    provider ||
-    (process.env.AI_PROVIDER as AIProviderName) ||
-    "gemini";
+    provider || (process.env.AI_PROVIDER as AIProviderName) || "gemini";
 
   switch (name) {
     case "minimax":
       return {
         name: "minimax",
         apiKey: process.env.MINIMAX_API_KEY || "",
-        baseUrl:
-          process.env.MINIMAX_BASE_URL || "https://api.minimax.io/v1",
+        baseUrl: process.env.MINIMAX_BASE_URL || "https://api.minimax.io/v1",
         model: process.env.MINIMAX_MODEL || "MiniMax-M2.7",
       };
 
@@ -47,13 +42,20 @@ export function getProviderConfig(
         model: "siray-1.0-ultra",
       };
 
+    case "ollama":
+      return {
+        name: "ollama",
+        apiKey: process.env.OLLAMA_API_KEY || "",
+        baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
+        model: process.env.OLLAMA_MODEL || "llama3.2",
+      };
+
     case "gemini":
     default:
       return {
         name: "gemini",
         apiKey: process.env.GEMINI_API_KEY || "",
-        baseUrl:
-          "https://generativelanguage.googleapis.com/v1beta/models",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/models",
         model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
       };
   }
@@ -64,7 +66,7 @@ export function getProviderConfig(
  * otherwise fall back to Gemini.
  */
 export function getFallbackProviderName(
-  primary: AIProviderName
+  primary: AIProviderName,
 ): AIProviderName {
   if (primary === "gemini") {
     // Prefer MiniMax as fallback when a key is available, else Siray
@@ -79,7 +81,7 @@ export function getFallbackProviderName(
 
 async function callGemini(
   prompt: string,
-  config: AIProviderConfig
+  config: AIProviderConfig,
 ): Promise<string> {
   if (!config.apiKey) throw new Error("GEMINI_API_KEY is not set");
 
@@ -105,22 +107,20 @@ async function callGemini(
 
 async function callOpenAICompatible(
   prompt: string,
-  config: AIProviderConfig
+  config: AIProviderConfig,
 ): Promise<string> {
-  if (!config.apiKey) {
-    throw new Error(
-      `${config.name.toUpperCase()}_API_KEY is not set`
-    );
-  }
-
   const url = `${config.baseUrl}/chat/completions`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (config.apiKey) {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model: config.model,
       messages: [{ role: "user", content: prompt }],
@@ -130,7 +130,7 @@ async function callOpenAICompatible(
 
   if (!res.ok) {
     throw new Error(
-      `${config.name} API error: ${res.status} ${res.statusText}`
+      `${config.name} API error: ${res.status} ${res.statusText}`,
     );
   }
 
@@ -150,7 +150,7 @@ async function callOpenAICompatible(
  */
 export async function callAIProvider(
   prompt: string,
-  provider?: AIProviderName
+  provider?: AIProviderName,
 ): Promise<string> {
   const config = getProviderConfig(provider);
 
@@ -166,10 +166,9 @@ export async function callAIProvider(
  * Tries the primary provider first; on failure switches to the fallback.
  */
 export async function callAIProviderWithFallback(
-  prompt: string
+  prompt: string,
 ): Promise<string> {
-  const primaryName =
-    (process.env.AI_PROVIDER as AIProviderName) || "gemini";
+  const primaryName = (process.env.AI_PROVIDER as AIProviderName) || "gemini";
   const fallbackName = getFallbackProviderName(primaryName);
 
   try {
@@ -177,7 +176,7 @@ export async function callAIProviderWithFallback(
   } catch (primaryError) {
     console.error(
       `⚠️ ${primaryName} failed, switching to ${fallbackName} fallback`,
-      primaryError
+      primaryError,
     );
     return await callAIProvider(prompt, fallbackName);
   }
