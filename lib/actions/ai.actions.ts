@@ -267,25 +267,15 @@ Recent news:
 Market Summary:`;
 
 const STOCK_ANALYSIS_PROMPT =
-  "You are a financial analyst. Provide a concise stock insight for {{symbol}} ({{companyName}}).\n\n" +
-  "Current price: ${{price}}\n" +
-  "Change: {{change}} ({{changePercent}}%)\n" +
+  "You are an investment advisor explaining a stock to a university student. Keep it clear, educational, and concise.\n\n" +
+  "Your analysis for {{symbol}} ({{companyName}}):\n" +
+  "Current price: ${{price}} ({{change}}, {{changePercent}}%%)\n" +
   "Market cap: {{marketCap}}\n\n" +
   "Technical Indicators:\n" +
   "{{technicalIndicators}}\n\n" +
-  "Recent news about this company:\n" +
+  "Recent news:\n" +
   "{{newsDigest}}\n\n" +
-  "Write 3-4 concise sentences covering:\n" +
-  "1. Recent price action relative to key moving averages (SMA20/50/200)\n" +
-  "2. Momentum signals from RSI and MACD\n" +
-  "3. Key news or developments\n" +
-  "4. Brief outlook or watchpoint\n\n" +
-  "Requirements:\n" +
-  "- Be factual and specific (use numbers from technical indicators when available)\n" +
-  "- Do NOT use markdown, headings, or bullet points\n" +
-  "- Keep it to 3-4 plain sentences (50-80 words total)\n" +
-  "- Tone: professional, objective, helpful for a retail investor\n" +
-  "- If technical indicators are not available, just focus on price action and news — do NOT mention missing data";
+  'Write 3-4 plain sentences. Start with "Score: X/10 — Bullish/Bearish/Neutral". Look at all the indicators together and explain what they collectively imply about the stock\'s direction (e.g. "the indicators point to strong upward momentum — RSI is bullish but not overbought, MACD is positive, and the stock is trending above its key averages"). Prioritize technical indicators, then price, then news. No markdown. No headings.';
 
 // ── Cache helpers ────────────────────────────────────────────────────
 
