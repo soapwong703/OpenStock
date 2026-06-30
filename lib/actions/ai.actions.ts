@@ -140,7 +140,15 @@ async function calcRSI(
   );
 }
 
-/** MACD via TA-Lib: returns MACD line, signal line, and histogram */
+/** MACD (12, 26, 9) via TA-Lib.
+ *
+ *  Formula:
+ *    MACD Line  = EMA(close, 12) - EMA(close, 26)
+ *    Signal     = EMA(MACD Line, 9)
+ *    Histogram  = MACD Line - Signal
+ *
+ *  Bullish when MACD Line > Signal, bearish when MACD Line < Signal.
+ */
 async function calcMACD(closes: number[]): Promise<{
   macd: number | null;
   signal: number | null;
@@ -168,35 +176,40 @@ async function calcMACD(closes: number[]): Promise<{
   };
 }
 
-/** KDJ via TA-Lib's STOCH: K = fast %K, D = slow %D, J = 3*D - 2*K */
+/** KDJ (9, 3, 3) — manual calculation matching the standard formula.
+ *
+ *  RSV(n) = (close - LL9) / (HH9 - LL9) × 100
+ *  K(n)   = 2/3 × K(n-1) + 1/3 × RSV(n)
+ *  D(n)   = 2/3 × D(n-1) + 1/3 × K(n)
+ *  J(n)   = 3 × K(n) - 2 × D(n)
+ *
+ *  Initial K = D = 50.
+ */
 async function calcKDJ(
   closes: number[],
   highs: number[],
   lows: number[],
 ): Promise<{ k: number | null; d: number | null; j: number | null }> {
-  if (closes.length < 9) return { k: null, d: null, j: null };
+  const period = 9;
+  if (closes.length < period) return { k: null, d: null, j: null };
 
-  const res = await talibExec({
-    name: "STOCH",
-    startIdx: 0,
-    endIdx: closes.length - 1,
-    high: highs,
-    low: lows,
-    close: closes,
-    optInFastK_Period: 9,
-    optInSlowK_Period: 3,
-    optInSlowK_MAType: 0, // SMA
-    optInSlowD_Period: 3,
-    optInSlowD_MAType: 0, // SMA
-  });
+  let k = 50;
+  let d = 50;
 
-  const r = res.result as Record<string, number[]>;
-  const nb = res.nbElement as number;
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) continue; // not enough data yet
 
-  const k = lastOf(r.outSlowK, nb);
-  const d = lastOf(r.outSlowD, nb);
-  const j = k !== null && d !== null ? 3 * d - 2 * k : null;
+    const start = i - period + 1;
+    const hh = Math.max(...highs.slice(start, i + 1));
+    const ll = Math.min(...lows.slice(start, i + 1));
+    const range = hh - ll;
 
+    const rsv = range > 0 ? ((closes[i] - ll) / range) * 100 : 50;
+    k = (2 / 3) * k + (1 / 3) * rsv;
+    d = (2 / 3) * d + (1 / 3) * k;
+  }
+
+  const j = 3 * k - 2 * d;
   return { k, d, j };
 }
 

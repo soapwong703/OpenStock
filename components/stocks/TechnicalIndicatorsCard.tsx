@@ -103,14 +103,14 @@ function MACDWidget({ macd }: { macd: TechnicalIndicators["macd"] }) {
   const bullish = macd.macd > macd.signal;
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">MACD</span>
+      <span className="text-xs text-gray-500">MACD (12, 26, 9)</span>
       <div className="mt-1 flex items-center gap-2 text-sm">
         <span className="font-semibold text-gray-200">
-          MACD: {macd.macd.toFixed(2)}
+          {macd.macd.toFixed(2)}
         </span>
         <span className="text-gray-500">/</span>
         <span className="font-semibold text-gray-200">
-          Sig: {macd.signal.toFixed(2)}
+          {macd.signal.toFixed(2)}
         </span>
         <span className={bullish ? "text-emerald-400" : "text-rose-400"}>
           {macd.histogram !== null
