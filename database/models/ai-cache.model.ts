@@ -3,7 +3,7 @@ import { Schema, model, models, type Document, type Model } from "mongoose";
 export interface ICache extends Document {
   /** Unique key for the cached entry (e.g. "market-summary", "stock-analysis:AAPL", "tech-data:AAPL") */
   cacheKey: string;
-  /** What kind of data this is — free string (e.g. "ai", "tech-indicators", "alpaca-bars") */
+  /** What kind of data this is — free string (e.g. "ai", "tech-indicators", "yahoo-bars") */
   type: string;
   /** The cached payload as a JSON string */
   result: string;

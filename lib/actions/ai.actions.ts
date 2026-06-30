@@ -1,15 +1,16 @@
 "use server";
 
 import { callAIProvider, getProviderConfig } from "@/lib/ai-provider";
+import { getNews } from "@/lib/actions/finnhub.actions";
 import {
-  getNews,
-  getQuote,
-  getCompanyProfile,
-} from "@/lib/actions/finnhub.actions";
+  getYahooQuote,
+  getYahooCompanyProfile,
+  getYahooHistoricalBars,
+} from "@/lib/actions/yahoo-finance.actions";
+import type { YahooBar } from "@/lib/actions/yahoo-finance.actions";
 import { connectToDatabase } from "@/database/mongoose";
 import { Cache } from "@/database/models/ai-cache.model";
 import talib from "talib";
-import Alpaca from "@alpacahq/alpaca-trade-api";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -41,93 +42,41 @@ export interface TechnicalIndicators {
   volume: number | null;
 }
 
-/** Minimal shape of an Alpaca bar (returned by getMultiBarsV2). */
-type AlpacaBar =
-  import("@alpacahq/alpaca-trade-api/dist/resources/datav2/entityv2").AlpacaBar;
-
-// ── Alpaca Market Data (cached, 1-day TTL) ───────────────────────────
+// ── Yahoo Finance Market Data (cached, 1-day TTL) ────────────────────
 
 /**
- * Fetch daily bars for a symbol using the Alpaca SDK, with DB caching.
+ * Fetch daily bars for a symbol using Yahoo Finance, with DB caching.
  * Returns at least 250 bars for computing indicators, or null on failure.
  * Cache TTL is 1 day since bar data only changes once per trading day.
  */
-async function getCachedAlpacaBars(
-  symbol: string,
-): Promise<AlpacaBar[] | null> {
-  const cacheKey = `alpaca-bars:${symbol.toUpperCase()}`;
+async function getCachedYahooBars(symbol: string): Promise<YahooBar[] | null> {
+  const cacheKey = `yahoo-bars:${symbol.toUpperCase()}`;
 
   await connectToDatabase();
 
   // ── Check cache ──────────────────────────────────────────────────────
   const cached = await Cache.findOne({ cacheKey }).lean();
   if (cached) {
-    console.log(`⚡ Alpaca Bars Cache HIT: ${cacheKey}`);
-    return JSON.parse(cached.result) as AlpacaBar[];
+    console.log(`⚡ Yahoo Bars Cache HIT: ${cacheKey}`);
+    return JSON.parse(cached.result) as YahooBar[];
   }
 
-  // ── Fetch from Alpaca ────────────────────────────────────────────────
-  try {
-    const key = process.env.ALPACA_API_KEY;
-    const secret = process.env.ALPACA_SECRET_KEY;
-    if (!key || !secret) {
-      console.error("⚠️ Alpaca: Missing API keys");
-      return null;
-    }
+  // ── Fetch from Yahoo ─────────────────────────────────────────────────
+  const bars = await getYahooHistoricalBars(symbol);
+  if (!bars) return null;
 
-    const alpaca = new Alpaca({
-      keyId: key,
-      secretKey: secret,
-      paper: true,
-    });
+  // ── Persist to cache with 1-day TTL ──────────────────────────────────
+  await Cache.deleteOne({ cacheKey });
+  await Cache.create({
+    cacheKey,
+    type: "yahoo-bars",
+    result: JSON.stringify(bars),
+    input: JSON.stringify({ symbol }),
+    expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
+  });
 
-    // Explicit date range to ensure we get enough bars
-    const end = new Date();
-    const start = new Date();
-    start.setFullYear(start.getFullYear() - 2); // 2 years back
-
-    console.log(
-      `📡 Alpaca bars ${symbol}: fetching from ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
-    );
-
-    const barsMap = await alpaca.getMultiBarsV2([symbol], {
-      timeframe: "1Day",
-      limit: 500,
-      adjustment: "split",
-      feed: "iex", // explicit — free tier needs IEX feed
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
-    });
-
-    const bars = barsMap.get(symbol.toUpperCase());
-    if (!bars || bars.length === 0) {
-      console.log(`📡 Alpaca bars ${symbol}: empty response`);
-      console.log(`   Map keys:`, [...barsMap.keys()]);
-      return null;
-    }
-
-    console.log(`✅ Alpaca bars ${symbol}: ${bars.length} days`);
-
-    // ── Persist to cache with 1-day TTL ──────────────────────────────────
-    await Cache.deleteOne({ cacheKey });
-    await Cache.create({
-      cacheKey,
-      type: "alpaca-bars",
-      result: JSON.stringify(bars),
-      input: JSON.stringify({ symbol }),
-      expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
-    });
-
-    console.log(`💾 Alpaca Bars Cache SAVED: ${cacheKey} (1d TTL)`);
-    return bars;
-  } catch (e) {
-    console.error(`❌ Alpaca bars failed for ${symbol}:`, e);
-    if (e instanceof Error) {
-      console.error(`   Message: ${e.message}`);
-      console.error(`   Stack: ${e.stack?.split("\n").slice(0, 3).join("\n")}`);
-    }
-    return null;
-  }
+  console.log(`💾 Yahoo Bars Cache SAVED: ${cacheKey} (1d TTL)`);
+  return bars;
 }
 
 // ── Technical Indicator Calculations (TA-Lib) ────────────────────────
@@ -307,11 +256,11 @@ async function getTechnicalIndicators(
   symbol: string,
 ): Promise<TechnicalIndicators> {
   const [bars, quote] = await Promise.all([
-    getCachedAlpacaBars(symbol),
-    getQuote(symbol),
+    getCachedYahooBars(symbol),
+    getYahooQuote(symbol),
   ]);
 
-  const currentPrice = quote?.c ?? null;
+  const currentPrice = quote?.regularMarketPrice ?? null;
 
   if (!bars || bars.length < 20) {
     return {
@@ -336,10 +285,14 @@ async function getTechnicalIndicators(
     };
   }
 
-  const closes = bars.map((b) => b.ClosePrice);
-  const highs = bars.map((b) => b.HighPrice);
-  const lows = bars.map((b) => b.LowPrice);
-  const volumes = bars.map((b) => b.Volume);
+  const closes = bars
+    .map((b) => b.close)
+    .filter((v): v is number => v !== null);
+  const highs = bars.map((b) => b.high).filter((v): v is number => v !== null);
+  const lows = bars.map((b) => b.low).filter((v): v is number => v !== null);
+  const volumes = bars
+    .map((b) => b.volume)
+    .filter((v): v is number => v !== null);
 
   const [
     rsi7,
@@ -509,7 +462,7 @@ async function callAIWithCache(
       provider: config.name,
       baseUrl: config.baseUrl,
     }),
-    expireAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+    expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
   });
 
   console.log(
@@ -559,17 +512,17 @@ export async function getAIStockAnalysis(
       `stock-analysis:${sym}`,
       async () => {
         const [quote, profile, articles] = await Promise.all([
-          getQuote(sym),
-          getCompanyProfile(sym),
+          getYahooQuote(sym),
+          getYahooCompanyProfile(sym),
           getNews([sym]).catch(() => [] as MarketNewsArticle[]),
         ]);
 
-        const price = quote?.c ?? 0;
-        const change = quote?.d ?? 0;
-        const changePercent = quote?.dp ?? 0;
+        const price = quote?.regularMarketPrice ?? 0;
+        const change = quote?.regularMarketChange ?? 0;
+        const changePercent = quote?.regularMarketChangePercent ?? 0;
         const companyName = profile?.name || sym;
-        const marketCap = profile?.marketCapitalization
-          ? `$${(profile.marketCapitalization / 1e9).toFixed(2)}B`
+        const marketCap = profile?.marketCap
+          ? `$${(profile.marketCap / 1e9).toFixed(2)}B`
           : "N/A";
 
         // Fetch & calculate technical indicators from Alpaca
@@ -668,7 +621,7 @@ export async function getStockTechnicalData(
         provider: "alpaca",
         baseUrl: "https://data.alpaca.markets/v2",
       }),
-      expireAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
     });
 
     console.log(`💾 Tech Data Cache SAVED: ${cacheKey}`);
