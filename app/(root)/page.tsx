@@ -1,9 +1,12 @@
 import TradingViewWidget from "@/components/TradingViewWidget";
 import AIMarketSummary from "@/components/AIMarketSummary";
+import TickerTape from "@/components/TickerTape";
 import {
+  ECONOMIC_CALENDAR_WIDGET_CONFIG,
   HEATMAP_WIDGET_CONFIG,
   MARKET_DATA_WIDGET_CONFIG,
   MARKET_OVERVIEW_WIDGET_CONFIG,
+  SCREENER_WIDGET_CONFIG,
   TOP_STORIES_WIDGET_CONFIG,
 } from "@/lib/constants";
 
@@ -12,6 +15,9 @@ const Home = () => {
 
   return (
     <div className="flex min-h-screen flex-col home-wrapper">
+      <div className="mb-6 w-full">
+        <TickerTape />
+      </div>
       <section className="w-full">
         <AIMarketSummary />
       </section>
@@ -50,22 +56,25 @@ const Home = () => {
           />
         </div>
       </section>
-      <div className="w-full flex flex-col items-center justify-center mt-8 gap-4">
-        <h2 className="text-xl font-semibold text-gray-200">
-          Upvote us on Peerlist 🚀
-        </h2>
-        <a
-          href="https://peerlist.io/ravixalgorithm/project/openstock"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <img
-            src="https://peerlist.io/api/v1/projects/embed/PRJH8OED7MBL9MGB9HRMKAKLM66KNN?showUpvote=true&theme=light"
-            alt="OpenStock"
-            style={{ width: "auto", height: "72px" }}
+
+      <section className="grid w-full gap-8 home-section">
+        <div className="h-full md:col-span-1 xl:col-span-2">
+          <TradingViewWidget
+            title="Economic Calendar"
+            scriptUrl={`${scriptUrl}events.js`}
+            config={ECONOMIC_CALENDAR_WIDGET_CONFIG}
+            height={600}
           />
-        </a>
-      </div>
+        </div>
+        <div className="h-full md:col-span-1 xl:col-span-1">
+          <TradingViewWidget
+            title="Stock Screener"
+            scriptUrl={`${scriptUrl}screener.js`}
+            config={SCREENER_WIDGET_CONFIG}
+            height={600}
+          />
+        </div>
+      </section>
     </div>
   );
 };
