@@ -1,32 +1,33 @@
 import { Schema, model, models, type Document, type Model } from "mongoose";
 
-export interface IAiCache extends Document {
-  /** Unique key to identify the cached entry (e.g. "market-summary", "stock-analysis:AAPL") */
+/** Well-known cache types — extend as needed */
+export type CacheType = "ai" | "tech-indicators";
+
+export interface ICache extends Document {
+  /** Unique key for the cached entry (e.g. "market-summary", "stock-analysis:AAPL", "tech-data:AAPL") */
   cacheKey: string;
-  prompt: string;
+  /** What kind of data this is ("ai", "tech-indicators", etc.) */
+  type: string;
+  /** The cached payload as a JSON string */
   result: string;
-  model: string;
-  provider: string;
-  baseUrl: string;
+  /** Arbitrary input metadata as a JSON string (prompt, model, provider, baseUrl, etc.) */
+  input: string;
   createdAt: Date;
 }
 
-const AiCacheSchema = new Schema<IAiCache>(
+const CacheSchema = new Schema<ICache>(
   {
     cacheKey: { type: String, required: true, unique: true, index: true },
-    prompt: { type: String, required: true },
+    type: { type: String, required: true },
     result: { type: String, required: true },
-    model: { type: String, required: true },
-    provider: { type: String, required: true },
-    baseUrl: { type: String, required: true },
+    input: { type: String, required: true, default: "{}" },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: false },
 );
 
 // TTL index: documents expire after 3600 seconds (1 hour)
-AiCacheSchema.index({ createdAt: 1 }, { expireAfterSeconds: 3600 });
+CacheSchema.index({ createdAt: 1 }, { expireAfterSeconds: 3600 });
 
-export const AiCache: Model<IAiCache> =
-  (models?.AiCache as Model<IAiCache>) ||
-  model<IAiCache>("AiCache", AiCacheSchema);
+export const Cache: Model<ICache> =
+  (models?.Cache as Model<ICache>) || model<ICache>("Cache", CacheSchema);

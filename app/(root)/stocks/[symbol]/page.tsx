@@ -2,6 +2,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
 import StockSentimentCard from "@/components/stocks/StockSentimentCard";
 import AIStockInsight from "@/components/stocks/AIStockInsight";
+import TechnicalIndicatorsCard from "@/components/stocks/TechnicalIndicatorsCard";
 import {
   SYMBOL_INFO_WIDGET_CONFIG,
   CANDLE_CHART_WIDGET_CONFIG,
@@ -44,6 +45,9 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
           />
         </div>
         <AIStockInsight symbol={symbol.toUpperCase()} />
+        <div className="mt-6">
+          <TechnicalIndicatorsCard symbol={symbol.toUpperCase()} />
+        </div>
       </div>
 
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
