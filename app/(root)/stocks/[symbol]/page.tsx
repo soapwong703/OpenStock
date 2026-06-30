@@ -32,7 +32,20 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
   ]);
 
   return (
-    <div className="flex min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="flex min-h-screen flex-col p-4 md:p-6 lg:p-8">
+      {/* AI Stock Insight — full-width hero at the top */}
+      <div className="mb-8 w-full">
+        <div className="flex items-center justify-between mb-4">
+          <WatchlistButton
+            symbol={symbol.toUpperCase()}
+            company={symbol.toUpperCase()}
+            isInWatchlist={isInWatchlist}
+            userId={userId}
+          />
+        </div>
+        <AIStockInsight symbol={symbol.toUpperCase()} />
+      </div>
+
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
         {/* Left column */}
         <div className="flex flex-col gap-6">
@@ -61,17 +74,6 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
 
         {/* Right column */}
         <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <WatchlistButton
-              symbol={symbol.toUpperCase()}
-              company={symbol.toUpperCase()}
-              isInWatchlist={isInWatchlist}
-              userId={userId}
-            />
-          </div>
-
-          <AIStockInsight symbol={symbol.toUpperCase()} />
-
           <StockSentimentCard insight={sentimentInsights} />
 
           <TradingViewWidget
