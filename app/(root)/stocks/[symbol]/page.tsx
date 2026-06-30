@@ -34,31 +34,35 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
 
   return (
     <div className="flex min-h-screen flex-col p-4 md:p-6 lg:p-8">
-      {/* AI Stock Insight — full-width hero at the top */}
-      <div className="mb-8 w-full">
-        <div className="flex items-center justify-between mb-4">
-          <WatchlistButton
-            symbol={symbol.toUpperCase()}
-            company={symbol.toUpperCase()}
-            isInWatchlist={isInWatchlist}
-            userId={userId}
-          />
-        </div>
-        <AIStockInsight symbol={symbol.toUpperCase()} />
-        <div className="mt-6">
-          <TechnicalIndicatorsCard symbol={symbol.toUpperCase()} />
-        </div>
+      {/* Watchlist button — compact square */}
+      <div className="mb-4">
+        <WatchlistButton
+          symbol={symbol.toUpperCase()}
+          company={symbol.toUpperCase()}
+          isInWatchlist={isInWatchlist}
+          userId={userId}
+          type="icon"
+        />
       </div>
+
+      {/* Symbol Info — full-width at the top */}
+      <div className="mb-8 w-full">
+        <TradingViewWidget
+          scriptUrl={`${scriptUrl}symbol-info.js`}
+          config={SYMBOL_INFO_WIDGET_CONFIG(tvSymbol)}
+          height={170}
+        />
+      </div>
+
+      {/* AI Insight + Technical Indicators — side by side */}
+      <section className="mb-8 grid w-full grid-cols-1 gap-8 md:grid-cols-2">
+        <AIStockInsight symbol={symbol.toUpperCase()} />
+        <TechnicalIndicatorsCard symbol={symbol.toUpperCase()} />
+      </section>
 
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
         {/* Left column */}
         <div className="flex flex-col gap-6">
-          <TradingViewWidget
-            scriptUrl={`${scriptUrl}symbol-info.js`}
-            config={SYMBOL_INFO_WIDGET_CONFIG(tvSymbol)}
-            height={170}
-          />
-
           <TradingViewWidget
             scriptUrl={`${scriptUrl}advanced-chart.js`}
             config={CANDLE_CHART_WIDGET_CONFIG(tvSymbol)}
