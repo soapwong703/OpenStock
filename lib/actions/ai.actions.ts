@@ -672,3 +672,130 @@ export async function askFollowUp(
     return "Sorry, I couldn't process your question. Please try again.";
   }
 }
+
+/**
+ * Generate an AI-powered plain-language summary of the current technical
+ * indicators for a stock. The result is cached for 1 day.
+ */
+export async function getTechnicalSummary(
+  symbol: string,
+  forceRefresh = false,
+): Promise<string> {
+  try {
+    const sym = symbol.toUpperCase();
+
+    return await callAIWithCache(
+      `ta-summary:${sym}`,
+      async () => {
+        const ti = await getTechnicalIndicators(sym);
+
+        // Build a quick reference of indicator readings with interpretation cues
+        const lines: string[] = [];
+
+        if (ti.rsi7 !== null) {
+          const state =
+            ti.rsi7 >= 70
+              ? "overbought"
+              : ti.rsi7 <= 30
+                ? "oversold"
+                : "neutral";
+          lines.push(`RSI(7): ${ti.rsi7.toFixed(1)} (${state})`);
+        }
+        if (ti.rsi14 !== null) {
+          const state =
+            ti.rsi14 >= 70
+              ? "overbought"
+              : ti.rsi14 <= 30
+                ? "oversold"
+                : "neutral";
+          lines.push(`RSI(14): ${ti.rsi14.toFixed(1)} (${state})`);
+        }
+        if (ti.rsi21 !== null) {
+          const state =
+            ti.rsi21 >= 70
+              ? "overbought"
+              : ti.rsi21 <= 30
+                ? "oversold"
+                : "neutral";
+          lines.push(`RSI(21): ${ti.rsi21.toFixed(1)} (${state})`);
+        }
+
+        if (ti.sma5 !== null && ti.currentPrice !== null) {
+          lines.push(
+            `SMA(5): $${ti.sma5.toFixed(2)} (price ${ti.currentPrice >= ti.sma5 ? "above" : "below"})`,
+          );
+        }
+        if (ti.sma10 !== null && ti.currentPrice !== null) {
+          lines.push(
+            `SMA(10): $${ti.sma10.toFixed(2)} (price ${ti.currentPrice >= ti.sma10 ? "above" : "below"})`,
+          );
+        }
+        if (ti.sma20 !== null && ti.currentPrice !== null) {
+          lines.push(
+            `SMA(20): $${ti.sma20.toFixed(2)} (price ${ti.currentPrice >= ti.sma20 ? "above" : "below"})`,
+          );
+        }
+        if (ti.sma50 !== null && ti.currentPrice !== null) {
+          lines.push(
+            `SMA(50): $${ti.sma50.toFixed(2)} (price ${ti.currentPrice >= ti.sma50 ? "above" : "below"})`,
+          );
+        }
+        if (ti.sma200 !== null && ti.currentPrice !== null) {
+          lines.push(
+            `SMA(200): $${ti.sma200.toFixed(2)} (price ${ti.currentPrice >= ti.sma200 ? "above" : "below"})`,
+          );
+        }
+
+        const macd = ti.macd;
+        if (macd && macd.macd !== null && macd.signal !== null) {
+          lines.push(
+            `MACD: ${macd.macd.toFixed(2)} / Signal: ${macd.signal.toFixed(2)} (${macd.macd > macd.signal ? "bullish" : "bearish"})`,
+          );
+        }
+
+        if (ti.k !== null && ti.d !== null && ti.j !== null) {
+          lines.push(
+            `KDJ: K=${ti.k.toFixed(1)} D=${ti.d.toFixed(1)} J=${ti.j.toFixed(1)} (K ${ti.k > ti.d ? "above" : "below"} D)`,
+          );
+        }
+
+        if (
+          ti.bbUpper !== null &&
+          ti.bbMiddle !== null &&
+          ti.bbLower !== null &&
+          ti.currentPrice !== null
+        ) {
+          const bbPos =
+            ti.currentPrice >= ti.bbUpper
+              ? "above upper band"
+              : ti.currentPrice <= ti.bbLower
+                ? "below lower band"
+                : "within bands";
+          lines.push(
+            `Bollinger Bands: Upper $${ti.bbUpper.toFixed(2)} Mid $${ti.bbMiddle.toFixed(2)} Lower $${ti.bbLower.toFixed(2)} (price ${bbPos})`,
+          );
+        }
+
+        if (ti.obv !== null) {
+          lines.push(
+            `OBV: ${ti.obv >= 0 ? "positive" : "negative"} (volume flow ${ti.obv >= 0 ? "in" : "out"})`,
+          );
+        }
+
+        const prompt =
+          "You are a technical analysis teacher. Based on the following indicator readings, " +
+          "write 2-3 plain sentences explaining what they collectively suggest about the stock's " +
+          "current technical state. Be specific with numbers. Use simple language a beginner could " +
+          "understand. No markdown. No headings.\n\n" +
+          "Indicator readings:\n" +
+          (lines.length > 0 ? lines.join("\n") : "No indicators available.");
+
+        return prompt;
+      },
+      forceRefresh,
+    );
+  } catch (error) {
+    console.error(`Failed to generate TA summary for ${symbol}:`, error);
+    return "Technical summary is currently unavailable.";
+  }
+}

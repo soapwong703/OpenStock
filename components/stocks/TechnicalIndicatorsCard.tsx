@@ -1,9 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { getStockTechnicalData } from "@/lib/actions/ai.actions";
+import { RefreshCw, Info } from "lucide-react";
+import {
+  getStockTechnicalData,
+  getTechnicalSummary,
+} from "@/lib/actions/ai.actions";
 import type { TechnicalIndicators } from "@/lib/actions/ai.actions";
+
+// ── Tooltip ─────────────────────────────────────────────────────────
+
+const TA_HINTS: Record<string, string> = {
+  RSI: "Relative Strength Index — measures speed/change of price movements on a scale of 0–100. Above 70 = overbought, below 30 = oversold.",
+  SMA: "Simple Moving Average — average closing price over N periods. Price above SMA = uptrend, below = downtrend.",
+  MACD: "Moving Average Convergence/Divergence — shows relationship between two EMAs. MACD line above signal = bullish, below = bearish.",
+  KDJ: "Stochastic oscillator variant — K and D show price position within recent range. J amplifies the K/D crossover signal.",
+  BB: "Bollinger Bands — SMA(20) ± 2 standard deviations. Price near upper band = overbought, near lower = oversold.",
+  OBV: "On-Balance Volume — cumulative volume adjusted for price direction. Rising = buying pressure, falling = selling pressure.",
+  Volume:
+    "Number of shares traded in a period. High volume confirms price moves, low volume suggests weak conviction.",
+};
+
+function InfoTooltip({ hint }: { hint: string }) {
+  return (
+    <span className="group relative inline-flex items-center">
+      <Info className="ml-1 h-3 w-3 cursor-help text-gray-600 hover:text-gray-400" />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-lg border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-xs leading-relaxed text-gray-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        {hint}
+      </span>
+    </span>
+  );
+}
 
 interface Props {
   symbol: string;
@@ -42,7 +69,10 @@ function RSIGroupWidget({
 }) {
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">RSI</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        RSI
+        <InfoTooltip hint={TA_HINTS.RSI} />
+      </span>
       <div className="mt-1 flex items-center gap-3 text-sm">
         <RSIWidget label="7" value={rsi7} />
         <RSIWidget label="14" value={rsi14} />
@@ -77,7 +107,10 @@ function SMAWidget({
 
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">SMA</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        SMA
+        <InfoTooltip hint={TA_HINTS.SMA} />
+      </span>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         {items.map(({ label, value }) => {
           if (value == null) return null;
@@ -103,7 +136,10 @@ function MACDWidget({ macd }: { macd: TechnicalIndicators["macd"] }) {
   const bullish = macd.macd > macd.signal;
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">MACD (12, 26, 9)</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        MACD (12, 26, 9)
+        <InfoTooltip hint={TA_HINTS.MACD} />
+      </span>
       <div className="mt-1 flex items-center gap-2 text-sm">
         <span className="font-semibold text-gray-200">
           {macd.macd.toFixed(2)}
@@ -132,7 +168,10 @@ function VolumeWidget({ value }: { value: number | null | undefined }) {
         : String(value);
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">Volume</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        Volume
+        <InfoTooltip hint={TA_HINTS.Volume} />
+      </span>
       <p className="mt-0.5 text-sm font-semibold text-gray-200">{vol}</p>
     </div>
   );
@@ -159,7 +198,10 @@ function KDJWidget({
 
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">KDJ (9, 3, 3)</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        KDJ (9, 3, 3)
+        <InfoTooltip hint={TA_HINTS.KDJ} />
+      </span>
       <div className="mt-1 flex items-center gap-3 text-sm">
         <span className="font-semibold text-gray-200">K: {k.toFixed(1)}</span>
         <span className="font-semibold text-gray-200">D: {d.toFixed(1)}</span>
@@ -196,7 +238,10 @@ function BBWidget({
 
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">Bollinger Bands (20, 2)</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        Bollinger Bands (20, 2)
+        <InfoTooltip hint={TA_HINTS.BB} />
+      </span>
       <div className="mt-1 flex items-center gap-2 text-sm">
         <span className="font-semibold text-gray-200">${upper.toFixed(2)}</span>
         <span className="text-gray-500">/</span>
@@ -228,7 +273,10 @@ function OBVWidget({ value }: { value: number | null | undefined }) {
         : "text-gray-200";
   return (
     <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="text-xs text-gray-500">OBV</span>
+      <span className="inline-flex items-center text-xs text-gray-500">
+        OBV
+        <InfoTooltip hint={TA_HINTS.OBV} />
+      </span>
       <p className={`mt-0.5 text-sm font-semibold ${color}`}>{obv}</p>
     </div>
   );
@@ -236,16 +284,22 @@ function OBVWidget({ value }: { value: number | null | undefined }) {
 
 export default function TechnicalIndicatorsCard({ symbol }: Props) {
   const [data, setData] = useState<TechnicalIndicators | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(
     async (forceRefresh = false) => {
       setLoading(true);
+      setSummary(null);
       try {
-        const result = await getStockTechnicalData(symbol, forceRefresh);
+        const [result, aiSummary] = await Promise.all([
+          getStockTechnicalData(symbol, forceRefresh),
+          getTechnicalSummary(symbol, forceRefresh),
+        ]);
         if (!result)
           console.warn(`⚠️ Technical indicators unavailable for ${symbol}`);
         setData(result);
+        setSummary(aiSummary);
       } catch (e) {
         console.error(`❌ Technical indicators failed for ${symbol}:`, e);
         setData(null);
@@ -333,6 +387,13 @@ export default function TechnicalIndicatorsCard({ symbol }: Props) {
             <OBVWidget value={data.obv} />
             <VolumeWidget value={data.volume} />
           </div>
+
+          {/* AI summary */}
+          {summary && (
+            <div className="rounded-lg border border-teal-900/40 bg-teal-950/20 px-3 py-2.5">
+              <p className="text-xs leading-relaxed text-gray-300">{summary}</p>
+            </div>
+          )}
         </div>
       )}
     </section>
