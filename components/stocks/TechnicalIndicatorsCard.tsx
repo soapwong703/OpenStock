@@ -32,6 +32,27 @@ function InfoTooltip({ hint }: { hint: string }) {
   );
 }
 
+/** Shared container wrapper for all TA indicator widgets. */
+function TAWidget({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
+      <span className="inline-flex items-center text-xs text-gray-500">
+        {label}
+        <InfoTooltip hint={hint} />
+      </span>
+      {children ?? <p className="mt-0.5 text-sm text-gray-600">Unavailable</p>}
+    </div>
+  );
+}
+
 interface Props {
   symbol: string;
 }
@@ -43,7 +64,7 @@ function RSIWidget({
   label: string;
   value: number | null | undefined;
 }) {
-  if (value == null) return null;
+  if (value == null) return <span className="text-gray-600 text-sm">—</span>;
   const color =
     value >= 70
       ? "text-rose-400"
@@ -67,18 +88,17 @@ function RSIGroupWidget({
   rsi14: number | null | undefined;
   rsi21: number | null | undefined;
 }) {
+  if (rsi7 == null && rsi14 == null && rsi21 == null)
+    return <TAWidget label="RSI" hint={TA_HINTS.RSI} />;
+
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        RSI
-        <InfoTooltip hint={TA_HINTS.RSI} />
-      </span>
+    <TAWidget label="RSI" hint={TA_HINTS.RSI}>
       <div className="mt-1 flex items-center gap-3 text-sm">
         <RSIWidget label="7" value={rsi7} />
         <RSIWidget label="14" value={rsi14} />
         <RSIWidget label="21" value={rsi21} />
       </div>
-    </div>
+    </TAWidget>
   );
 }
 
@@ -105,12 +125,12 @@ function SMAWidget({
     { label: "200", value: sma200 },
   ];
 
+  const hasAny = items.some((i) => i.value != null);
+
+  if (!hasAny) return <TAWidget label="SMA" hint={TA_HINTS.SMA} />;
+
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        SMA
-        <InfoTooltip hint={TA_HINTS.SMA} />
-      </span>
+    <TAWidget label="SMA" hint={TA_HINTS.SMA}>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         {items.map(({ label, value }) => {
           if (value == null) return null;
@@ -127,19 +147,16 @@ function SMAWidget({
           );
         })}
       </div>
-    </div>
+    </TAWidget>
   );
 }
 
 function MACDWidget({ macd }: { macd: TechnicalIndicators["macd"] }) {
-  if (!macd || macd.macd === null || macd.signal === null) return null;
+  if (!macd || macd.macd === null || macd.signal === null)
+    return <TAWidget label="MACD (12, 26, 9)" hint={TA_HINTS.MACD} />;
   const bullish = macd.macd > macd.signal;
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        MACD (12, 26, 9)
-        <InfoTooltip hint={TA_HINTS.MACD} />
-      </span>
+    <TAWidget label="MACD (12, 26, 9)" hint={TA_HINTS.MACD}>
       <div className="mt-1 flex items-center gap-2 text-sm">
         <span className="font-semibold text-gray-200">
           {macd.macd.toFixed(2)}
@@ -154,12 +171,12 @@ function MACDWidget({ macd }: { macd: TechnicalIndicators["macd"] }) {
             : ""}
         </span>
       </div>
-    </div>
+    </TAWidget>
   );
 }
 
 function VolumeWidget({ value }: { value: number | null | undefined }) {
-  if (value == null) return null;
+  if (value == null) return <TAWidget label="Volume" hint={TA_HINTS.Volume} />;
   const vol =
     value >= 1_000_000
       ? `${(value / 1_000_000).toFixed(1)}M`
@@ -167,13 +184,9 @@ function VolumeWidget({ value }: { value: number | null | undefined }) {
         ? `${(value / 1_000).toFixed(0)}K`
         : String(value);
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        Volume
-        <InfoTooltip hint={TA_HINTS.Volume} />
-      </span>
+    <TAWidget label="Volume" hint={TA_HINTS.Volume}>
       <p className="mt-0.5 text-sm font-semibold text-gray-200">{vol}</p>
-    </div>
+    </TAWidget>
   );
 }
 
@@ -186,22 +199,16 @@ function KDJWidget({
   d: number | null | undefined;
   j: number | null | undefined;
 }) {
-  if (k == null || d == null || j == null) return null;
+  if (k == null || d == null || j == null)
+    return <TAWidget label="KDJ (9, 3, 3)" hint={TA_HINTS.KDJ} />;
 
-  // Colour based on J line (most sensitive)
   const jColor =
     j > 100 ? "text-rose-400" : j < 0 ? "text-emerald-400" : "text-gray-200";
-
-  // K/D crossover signal
   const bullCross = k > d;
   const crossColor = bullCross ? "text-emerald-400" : "text-rose-400";
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        KDJ (9, 3, 3)
-        <InfoTooltip hint={TA_HINTS.KDJ} />
-      </span>
+    <TAWidget label="KDJ (9, 3, 3)" hint={TA_HINTS.KDJ}>
       <div className="mt-1 flex items-center gap-3 text-sm">
         <span className="font-semibold text-gray-200">K: {k.toFixed(1)}</span>
         <span className="font-semibold text-gray-200">D: {d.toFixed(1)}</span>
@@ -210,7 +217,7 @@ function KDJWidget({
           K {bullCross ? "↑" : "↓"} D
         </span>
       </div>
-    </div>
+    </TAWidget>
   );
 }
 
@@ -225,23 +232,17 @@ function BBWidget({
   lower: number | null | undefined;
   price: number | null;
 }) {
-  if (upper == null || middle == null || lower == null) return null;
+  if (upper == null || middle == null || lower == null)
+    return <TAWidget label="Bollinger Bands (20, 2)" hint={TA_HINTS.BB} />;
 
-  // Where is price relative to the bands?
   const bandWidth = upper - lower;
   const relPos = bandWidth > 0 ? ((price ?? middle) - lower) / bandWidth : 0.5;
-
-  // Colour based on proximity to upper (overbought) / lower (oversold)
   let bandColor = "text-gray-200";
   if (relPos > 0.9) bandColor = "text-rose-400";
   else if (relPos < 0.1) bandColor = "text-emerald-400";
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        Bollinger Bands (20, 2)
-        <InfoTooltip hint={TA_HINTS.BB} />
-      </span>
+    <TAWidget label="Bollinger Bands (20, 2)" hint={TA_HINTS.BB}>
       <div className="mt-1 flex items-center gap-2 text-sm">
         <span className="font-semibold text-gray-200">${upper.toFixed(2)}</span>
         <span className="text-gray-500">/</span>
@@ -251,12 +252,12 @@ function BBWidget({
         <span className="text-gray-500">/</span>
         <span className="font-semibold text-gray-200">${lower.toFixed(2)}</span>
       </div>
-    </div>
+    </TAWidget>
   );
 }
 
 function OBVWidget({ value }: { value: number | null | undefined }) {
-  if (value == null) return null;
+  if (value == null) return <TAWidget label="OBV" hint={TA_HINTS.OBV} />;
   const absVal = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   const obv =
@@ -272,13 +273,9 @@ function OBVWidget({ value }: { value: number | null | undefined }) {
         ? "text-rose-400"
         : "text-gray-200";
   return (
-    <div className="rounded-lg border border-gray-800 bg-black/20 px-3 py-2">
-      <span className="inline-flex items-center text-xs text-gray-500">
-        OBV
-        <InfoTooltip hint={TA_HINTS.OBV} />
-      </span>
+    <TAWidget label="OBV" hint={TA_HINTS.OBV}>
       <p className={`mt-0.5 text-sm font-semibold ${color}`}>{obv}</p>
-    </div>
+    </TAWidget>
   );
 }
 
