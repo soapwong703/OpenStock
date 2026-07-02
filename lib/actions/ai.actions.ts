@@ -44,6 +44,11 @@ export interface TechnicalIndicators {
 
 // ── Yahoo Finance Market Data (cached, 1-day TTL) ────────────────────
 
+/** Public wrapper to get cached bars for chart display. */
+export async function getChartBars(symbol: string): Promise<YahooBar[] | null> {
+  return getCachedYahooBars(symbol);
+}
+
 /**
  * Fetch daily bars for a symbol using Yahoo Finance, with DB caching.
  * Returns at least 250 bars for computing indicators, or null on failure.

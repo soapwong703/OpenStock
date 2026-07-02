@@ -3,6 +3,7 @@ import WatchlistButton from "@/components/WatchlistButton";
 import StockSentimentCard from "@/components/stocks/StockSentimentCard";
 import AIStockInsight from "@/components/stocks/AIStockInsight";
 import TechnicalIndicatorsCard from "@/components/stocks/TechnicalIndicatorsCard";
+import ChartContainer from "@/components/ChartContainer";
 import {
   SYMBOL_INFO_WIDGET_CONFIG,
   CANDLE_CHART_WIDGET_CONFIG,
@@ -53,6 +54,11 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
           height={170}
         />
       </div>
+
+      {/* Lightweight Charts — full-width interactive chart with TA overlays */}
+      <section className="mb-8 w-full">
+        <ChartContainer symbol={symbol.toUpperCase()} />
+      </section>
 
       {/* AI Insight + Technical Indicators — side by side */}
       <section className="mb-8 grid w-full grid-cols-1 gap-8 md:grid-cols-2">
